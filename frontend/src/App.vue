@@ -1,85 +1,144 @@
 <script setup>
-import { RouterLink, RouterView } from 'vue-router'
-import HelloWorld from './components/HelloWorld.vue'
+import { io } from 'socket.io-client'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+
+const username = ref('')
+const roomName = ref('')
+const currentRoom = ref('')
+const rooms = ref([])
+const users = ref([])
+const connected = ref(false)
+const socket = ref(null)
+
+const connectSocket = () => {
+  if (socket.value) {
+    return
+  }
+
+  socket.value = io('http://localhost:3000', {
+    transports: ['websocket'],
+    autoConnect: true,
+  })
+
+  socket.value.on('connect', () => {
+    connected.value = true
+  })
+
+  socket.value.on('disconnect', () => {
+    connected.value = false
+  })
+
+  socket.value.on('room_list', (data) => {
+    rooms.value = data || []
+  })
+
+  socket.value.on('room_users', (data) => {
+    users.value = data || []
+  })
+
+  socket.value.on('room_joined', ({ roomName: joinedRoom }) => {
+    currentRoom.value = joinedRoom
+  })
+
+  socket.value.on('error_message', (message) => {
+    window.alert(message)
+  })
+}
+
+const joinRoom = () => {
+  const safeUsername = username.value.trim()
+  const safeRoomName = roomName.value.trim()
+
+  if (!safeUsername || !safeRoomName) {
+    window.alert('Necesitas escribir un nombre y una sala.')
+    return
+  }
+
+  socket.value.emit('join_room', {
+    username: safeUsername,
+    roomName: safeRoomName,
+  })
+}
+
+const joinExistingRoom = (name) => {
+  roomName.value = name
+  joinRoom()
+}
+
+onMounted(() => {
+  connectSocket()
+})
+
+onBeforeUnmount(() => {
+  if (socket.value) {
+    socket.value.disconnect()
+    socket.value = null
+  }
+})
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
+  <main>
+    <h1>PaintRooms</h1>
 
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
+    <p>{{ connected ? 'Conectado al servidor' : 'Conectando...' }}</p>
 
-      <nav>
-        <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/about">About</RouterLink>
-      </nav>
+    <div>
+      <label for="username">Nombre</label>
+      <input id="username" v-model="username" placeholder="Tu nombre" />
     </div>
-  </header>
 
-  <RouterView />
+    <div>
+      <label for="roomName">Sala</label>
+      <input id="roomName" v-model="roomName" placeholder="Nombre de la sala" />
+      <button @click="joinRoom">Entrar / crear sala</button>
+    </div>
+
+    <section v-if="currentRoom">
+      <h2>Sala actual: {{ currentRoom }}</h2>
+      <p>Usuarios en la sala:</p>
+      <ul>
+        <li v-for="user in users" :key="user.username">
+          {{ user.username }}
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>Salas disponibles</h3>
+      <ul>
+        <li v-if="rooms.length === 0">No hay salas activas.</li>
+        <li v-for="room in rooms" :key="room.name">
+          <button @click="joinExistingRoom(room.name)">
+            Entrar a {{ room.name }} ({{ room.users }})
+          </button>
+        </li>
+      </ul>
+    </section>
+  </main>
 </template>
 
 <style scoped>
-header {
-  line-height: 1.5;
-  max-height: 100vh;
+main {
+  font-family: Arial, sans-serif;
+  max-width: 700px;
+  margin: 2rem auto;
+  padding: 1rem;
 }
 
-.logo {
+input,
+button {
   display: block;
-  margin: 0 auto 2rem;
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem;
 }
 
-nav {
-  width: 100%;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 2rem;
+button {
+  cursor: pointer;
 }
 
-nav a.router-link-exact-active {
-  color: var(--color-text);
-}
-
-nav a.router-link-exact-active:hover {
-  background-color: transparent;
-}
-
-nav a {
-  display: inline-block;
-  padding: 0 1rem;
-  border-left: 1px solid var(--color-border);
-}
-
-nav a:first-of-type {
-  border: 0;
-}
-
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  nav {
-    text-align: left;
-    margin-left: -1rem;
-    font-size: 1rem;
-
-    padding: 1rem 0;
-    margin-top: 1rem;
-  }
+ul {
+  padding-left: 1.2rem;
 }
 </style>
