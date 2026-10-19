@@ -1,0 +1,31 @@
+services:
+
+  # ── Backend ────────────────────────────────────────────────────────────────
+  backend:
+    build: ./backend
+    container_name: paintrooms-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+    # Hot-reload opcional: monta el código fuente del backend
+    volumes:
+      - ./backend/server.js:/app/server.js:ro
+
+  # ── Frontend ───────────────────────────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    container_name: paintrooms-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      # La URL del backend accesible desde el navegador del host
+      VITE_BACKEND_URL: "http://localhost:3000"
+    depends_on:
+      - backend
+    # Hot-reload: monta el código fuente (se excluye node_modules)
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
